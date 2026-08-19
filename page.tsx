@@ -1,30 +1,34 @@
 import {
   fetchCompanyFinancials,
+  fetchCompanyList,
   fetchCompanyProfile,
+  fetchStarterPortfolio,
 } from "@/lib/data/financial-data-service";
 import { freeCashFlow, fcfMargin, revenueGrowth } from "@/lib/calculations/ratios";
-import { DCFWorkspace } from "@/components/dcf/DCFWorkspace";
+import { ScenarioWorkspace } from "@/components/scenarios/ScenarioWorkspace";
 import { DCFInputs } from "@/lib/types";
 
-export default async function DCFPage({
+export default async function ScenariosPage({
   searchParams,
 }: {
   searchParams: { ticker?: string };
 }) {
-  const ticker = (searchParams.ticker ?? "AAPL").toUpperCase();
-  const [profile, financials] = await Promise.all([
+  const ticker = (searchParams.ticker ?? "NVDA").toUpperCase();
+  const [profile, financials, companies, positions] = await Promise.all([
     fetchCompanyProfile(ticker),
     fetchCompanyFinancials(ticker),
+    fetchCompanyList(),
+    fetchStarterPortfolio(),
   ]);
 
-  let initialInputs: DCFInputs;
+  let baseDcfInputs: DCFInputs;
 
   if (profile && financials) {
     const latest = financials.history[financials.history.length - 1];
     const prior = financials.history[financials.history.length - 2];
     const growth = revenueGrowth(latest, prior);
 
-    initialInputs = {
+    baseDcfInputs = {
       currentRevenue: latest.revenue,
       currentFCF: freeCashFlow(latest),
       revenueGrowthRate: growth !== null ? Math.max(0, Math.min(0.35, growth)) : 0.08,
@@ -37,8 +41,7 @@ export default async function DCFPage({
       currentSharePrice: profile.currentPrice,
     };
   } else {
-    // Fallback generic defaults if ticker isn't found in mock data
-    initialInputs = {
+    baseDcfInputs = {
       currentRevenue: 100000,
       currentFCF: 15000,
       revenueGrowthRate: 0.1,
@@ -55,14 +58,20 @@ export default async function DCFPage({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold text-ink-900">DCF Valuation</h1>
+        <h1 className="text-lg font-semibold text-ink-900">
+          Scenario Analysis
+        </h1>
         <p className="mt-0.5 text-2xs text-ink-400">
-          {profile ? `${profile.name} (${profile.ticker})` : "Custom inputs"} ·
-          All calculations run client-side, deterministically, as you adjust
-          assumptions.
+          Bear / Base / Bull cases and manual shock simulation. All figures
+          are hypothetical illustrations, not predictions.
         </p>
       </div>
-      <DCFWorkspace initialInputs={initialInputs} />
+      <ScenarioWorkspace
+        companies={companies}
+        activeTicker={ticker}
+        baseDcfInputs={baseDcfInputs}
+        positions={positions}
+      />
     </div>
   );
 }
